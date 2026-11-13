@@ -9,6 +9,7 @@
 #include "Nodo.h"
 #include "Parser.h"
 #include "AnalizadorSemantico.h"
+#include "CodigoIntermedio.h"
 
 int main() {
     std::string codigo;
@@ -57,6 +58,15 @@ int main() {
                 const auto& erroresSemanticos = semantico.obtenerErrores();
                 if (erroresSemanticos.empty()) {
                     std::cout << "Analisis semantico correcto.\n";
+
+                    std::cout << "\n************* CODIGO INTERMEDIO *******************\n";
+                    GeneradorCodigoIntermedio generador;
+                    generador.generar(arbol);
+                    std::cout << "Codigo de tres direcciones:\n\n";
+                    generador.imprimirCodigo();
+                    std::cout << "\nCuadruplas:\n\n";
+                    generador.imprimirCuadruplas();
+
                     std::cout << "\nCOMPILACION CORRECTA: no se encontraron errores.\n";
                 } else {
                     std::cout << "Se encontraron " << erroresSemanticos.size() << " de posibles errores semanticos:\n";
