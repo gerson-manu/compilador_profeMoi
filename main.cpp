@@ -11,6 +11,7 @@
 #include "AnalizadorSemantico.h"
 #include "CodigoIntermedio.h"
 #include "OptimizadorCodigo.h"
+#include "GeneradorCodigo.h"
 
 int main() {
     std::string codigo;
@@ -25,6 +26,7 @@ int main() {
         Lexer lexer(codigo);                //Se crea un Lexer nuevo en cada vuelta para que empiece desde cero y no se sobreescriban
         std::cout << codigo << "\n\n";
 
+        std::cout << "\n************* ANALISIS LEXICO *******************\n";
         std::vector<Token> listaTokens;
         Token token = lexer.obtenerSiguienteToken();
         while (token.tipo != TipoToken::FIN) {
@@ -63,14 +65,14 @@ int main() {
                     std::cout << "\n************* CODIGO INTERMEDIO *******************\n";
                     GeneradorCodigoIntermedio generador;
                     generador.generar(arbol);
-                    std::cout << "Codigo de tres direcciones:\n\n";
+                    std::cout << "\nCodigo de tres direcciones:\n\n";
                     generador.imprimirCodigo();
                     std::cout << "\nCuadruplas:\n\n";
                     generador.imprimirCuadruplas();
 
                     /*Parte de la optimización de código*/
 
-                    std::cout << "\n******** OPTIMIZACION DE CODIGO ********\n";
+                    std::cout << "\n************* OPTIMIZACION DE CODIGO *************\n";
 
                     //Copiamos las cuadruplas originales
                     std::vector<Cuadrupla> codigoOptimizado = generador.obtenerCodigo();
@@ -90,8 +92,22 @@ int main() {
 
                     optimizador.imprimirCuadruplas(codigoOptimizado);
 
-                    //Resumen del código intermedio y lo qye imprimirá
+
+                    //Resumen de la optimizacion
                     optimizador.imprimirResumen();
+
+                    /*Parte de la generación de código*/
+
+                    std::cout << "\n************* GENERACION DE CODIGO *************\n";
+
+                    //Creamos el generador de codigo
+                    GeneradorCodigo generadorCodigo;
+
+                    //Enviamos las cuadruplas optimizadas
+                    generadorCodigo.generarCodigo(codigoOptimizado);
+
+                    //Mostramos el codigo ensamblador
+                    generadorCodigo.imprimirCodigo();
 
                     std::cout << "\nCOMPILACION CORRECTA: no se encontraron errores.\n";
                 } else {
