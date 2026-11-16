@@ -10,6 +10,7 @@
 #include "Parser.h"
 #include "AnalizadorSemantico.h"
 #include "CodigoIntermedio.h"
+#include "OptimizadorCodigo.h"
 
 int main() {
     std::string codigo;
@@ -67,6 +68,31 @@ int main() {
                     std::cout << "\nCuadruplas:\n\n";
                     generador.imprimirCuadruplas();
 
+                    /*Parte de la optimización de código*/
+
+                    std::cout << "\n******** OPTIMIZACION DE CODIGO ********\n";
+
+                    //Copiamos las cuadruplas originales
+                    std::vector<Cuadrupla> codigoOptimizado = generador.obtenerCodigo();
+
+                    //Creamos el optimizador
+                    OptimizadorCodigo optimizador;
+
+                    //Aplicamos las optimizaciones
+                    optimizador.optimizar(codigoOptimizado);
+
+                    //Mostramos los resultados
+                    std::cout << "\nCodigo optimizado:\n\n";
+
+                    optimizador.imprimirCodigo(codigoOptimizado);
+
+                    std::cout << "\nCuadruplas optimizadas:\n\n";
+
+                    optimizador.imprimirCuadruplas(codigoOptimizado);
+
+                    //Resumen del código intermedio y lo qye imprimirá
+                    optimizador.imprimirResumen();
+
                     std::cout << "\nCOMPILACION CORRECTA: no se encontraron errores.\n";
                 } else {
                     std::cout << "Se encontraron " << erroresSemanticos.size() << " de posibles errores semanticos:\n";
@@ -115,6 +141,15 @@ int resultado = 5 + "hola";
 int sumar(int a, int b) { return a + b; } int resultado = sumar(5);
 int obtenerEdad() { return "dieciocho"; }
 
+* Pequeña prueba para la optimización de código
+int resultado = 8 + 4;
+int numero = 10;
+int resultado = numero * 1;
+int suma = 6 + 7;
+int resta = 15 - 5;
+int numero = 5 + ;
+int resultado = precio + 5;
+int numero = "hola";
 */
 
 //Salu2
