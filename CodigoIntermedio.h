@@ -41,6 +41,10 @@ private:
         if (a == std::string::npos || b == std::string::npos || b <= a) return "";
         return etiqueta.substr(a + 1, b - a - 1);
     }
+    //Los #include y el using namespace no generan codigo (no son sentencias del programa)
+    bool esDeEntorno(const NodoPtr& n) const {
+        return inicia(n->etiqueta, "Include(") || inicia(n->etiqueta, "IncludeLocal(") || inicia(n->etiqueta, "UsingNamespace(");
+    }
     std::string nuevoTemporal() { return "t" + std::to_string(++contadorTemporales); }
     std::string nuevaEtiqueta() { return "L" + std::to_string(++contadorEtiquetas); }
 
@@ -424,12 +428,12 @@ public:
         for (const auto& n : raiz->hijos) {
             if (!n) continue;
             if (inicia(n->etiqueta, "Funcion(")) generarFuncion(n);
-            else if (!inicia(n->etiqueta, "Prototipo(")) haySuelto = true;
+            else if (!inicia(n->etiqueta, "Prototipo(") && !esDeEntorno(n)) haySuelto = true;
         }
         if (haySuelto) {
             emitir("func_begin", "", "", "main");
             for (const auto& n : raiz->hijos) {
-                if (n && !inicia(n->etiqueta, "Funcion(")) generarSentencia(n);
+                if (n && !inicia(n->etiqueta, "Funcion(") && !esDeEntorno(n)) generarSentencia(n);
             }
             emitir("func_end", "", "", "main");
         }

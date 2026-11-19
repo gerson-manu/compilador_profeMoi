@@ -5,7 +5,9 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
 #include "Nodo.h"
+#include "Librerias.h"
 
 //==================== ANALISIS SEMANTICO ====================
 //Esta etapa revisa declaraciones, ambitos, tipos, funciones y uso correcto de sentencias.
@@ -31,6 +33,11 @@ private:
     int profundidadCiclo = 0;
     int profundidadSwitch = 0;
 
+    //Si es false, el compilador deja de exigir los #include (cout, sqrt... se aceptan sin la libreria)
+    const bool exigirLibrerias = true;
+    std::set<std::string> includes;          //Librerias que el programa ya incluyo con #include
+    std::set<std::string> avisosLibreria;    //Simbolos/funciones ya avisados, para no repetir el mismo error
+
     bool inicia(const std::string& texto, const std::string& prefijo) const {
         return texto.rfind(prefijo, 0) == 0;
     }
@@ -40,6 +47,61 @@ private:
         return etiqueta.substr(a + 1, b - a - 1);
     }
     void error(const std::string& mensaje) { errores.push_back(mensaje); }
+
+    //TRUE si esa libreria ya fue incluida (bits/stdc++.h incluye todas)
+    bool libreriaDisponible(const std::string& libreria) const {
+        return !exigirLibrerias || includes.count(libreria) > 0 || includes.count(libreriaTodo()) > 0;
+    }
+
+    //Revisa que la libreria de un simbolo (cout, cin, endl) este incluida; si no, avisa una sola vez
+    void requiereLibreria(const std::string& simbolo, const std::string& libreria) {
+        if (libreriaDisponible(libreria) || avisosLibreria.count(simbolo)) return;
+        avisosLibreria.insert(simbolo);
+        error("'" + simbolo + "' pertenece a la libreria <" + libreria + ">: falta agregar #include <" + libreria + ">.");
+    }
+
+    //Procesa un #include <nombre>: revisa que la libreria exista y la anota como incluida
+    void registrarInclude(const std::string& nombreEscrito) {
+        std::string nombre = normalizarLibreria(nombreEscrito);   //math.h -> cmath
+        if (!esLibreriaConocida(nombre)) {
+            std::string mensaje = "La libreria <" + nombreEscrito + "> no se reconoce";
+            std::string sugerida = sugerirLibreria(nombre);
+            if (!sugerida.empty()) mensaje += " (quiso decir <" + sugerida + ">?)";
+            error(mensaje + ".");
+            return;
+        }
+        includes.insert(nombre);
+    }
+
+    //Revisa la llamada a una funcion de libreria (sqrt, pow, rand...). Devuelve su tipo de retorno
+    //o "error" si no se pudo revisar. 'encontrada' indica si ese nombre existe en alguna libreria
+    std::string analizarFuncionLibreria(const std::string& nombre, const std::vector<std::string>& argumentos, bool& encontrada) {
+        std::vector<FuncionLibreria> candidatas = buscarFuncionesDeLibreria(nombre);
+        encontrada = !candidatas.empty();
+        if (!encontrada) return "error";
+
+        //Se usa la primera cuya libreria si fue incluida
+        for (const FuncionLibreria& f : candidatas) {
+            if (!libreriaDisponible(f.libreria)) continue;
+            if (static_cast<int>(argumentos.size()) != f.numParametros) {
+                error("La funcion '" + nombre + "' de <" + f.libreria + "> espera " + std::to_string(f.numParametros) +
+                      " argumento(s), pero recibio " + std::to_string(argumentos.size()) + ".");
+                return f.retorno;
+            }
+            for (size_t i = 0; i < argumentos.size(); ++i) {
+                if (!compatible(f.tipoParametro, argumentos[i]) && argumentos[i] != "error")
+                    error("El argumento " + std::to_string(i + 1) + " de '" + nombre + "' tiene tipo " + argumentos[i] + " y se esperaba " + f.tipoParametro + ".");
+            }
+            return f.retorno;
+        }
+
+        //Existe, pero ninguna de sus librerias esta incluida
+        if (!avisosLibreria.count(nombre)) {
+            avisosLibreria.insert(nombre);
+            error("La funcion '" + nombre + "' pertenece a la libreria <" + candidatas[0].libreria + ">: falta agregar #include <" + candidatas[0].libreria + ">.");
+        }
+        return "error";
+    }
     void abrirAmbito() { ambitos.emplace_back(); }
     void cerrarAmbito() { if (!ambitos.empty()) ambitos.pop_back(); }
     bool buscar(const std::string& nombre, Simbolo& salida) const {
@@ -76,7 +138,7 @@ private:
         if (inicia(e, "CADENA(")) return "string";
         if (inicia(e, "CARACTER(")) return "char";
         if (inicia(e, "BOOL(")) return "bool";
-        if (e == "Endl") return "endl";
+        if (e == "Endl") { requiereLibreria("endl", "iostream"); return "endl"; }
         if (inicia(e, "Variable(")) return tipoVariable(n);
         if (e == "Indice") {
             if (n->hijos.size() != 2) return "error";
@@ -94,7 +156,13 @@ private:
             auto f = funciones.find(nombre);
             std::vector<std::string> argumentos;
             for (size_t i = 1; i < n->hijos.size(); ++i) argumentos.push_back(analizarExpresion(n->hijos[i]));
-            if (f == funciones.end()) { error("La funcion '" + nombre + "' no ha sido declarada."); return "error"; }
+            if (f == funciones.end()) {
+                //No la definio el usuario: puede ser una funcion de libreria (sqrt, pow, rand...)
+                bool deLibreria = false;
+                std::string retornoLibreria = analizarFuncionLibreria(nombre, argumentos, deLibreria);
+                if (deLibreria) return retornoLibreria;
+                error("La funcion '" + nombre + "' no ha sido declarada."); return "error";
+            }
             if (argumentos.size() != f->second.parametros.size()) {
                 error("La funcion '" + nombre + "' espera " + std::to_string(f->second.parametros.size()) + " argumento(s), pero recibio " + std::to_string(argumentos.size()) + ".");
             } else {
@@ -228,6 +296,13 @@ private:
         if (!n) return;
         const std::string& e = n->etiqueta;
         if (e == "Declaracion") { analizarDeclaracion(n); return; }
+        if (inicia(e,"Include(")) { registrarInclude(dentroParentesis(e)); return; }
+        if (inicia(e,"IncludeLocal(")) return;      //Archivos propios del usuario: no se analizan
+        if (inicia(e,"UsingNamespace(")) {
+            std::string espacio = dentroParentesis(e);
+            if (espacio != "std") error("El espacio de nombres '" + espacio + "' no existe (el compilador solo conoce 'std').");
+            return;
+        }
         if (inicia(e,"Funcion(") || inicia(e,"Prototipo(")) { analizarFuncion(n); return; }
         if (e == "Bloque") {
             abrirAmbito(); for (const auto& h : n->hijos) analizarSentencia(h); cerrarAmbito(); return;
@@ -282,8 +357,8 @@ private:
         }
         if (e == "Break") { if (profundidadCiclo==0 && profundidadSwitch==0) error("break solo puede utilizarse dentro de un ciclo o switch."); return; }
         if (e == "Continue") { if (profundidadCiclo==0) error("continue solo puede utilizarse dentro de un ciclo."); return; }
-        if (e == "Salida(cout)") { for (const auto& h:n->hijos) analizarExpresion(h); return; }
-        if (e == "Entrada(cin)") { for (const auto& h:n->hijos) { std::string t=analizarExpresion(h); if (t=="string" || t=="endl") error("cin necesita una variable modificable."); } return; }
+        if (e == "Salida(cout)") { requiereLibreria("cout", "iostream"); for (const auto& h:n->hijos) analizarExpresion(h); return; }
+        if (e == "Entrada(cin)") { requiereLibreria("cin", "iostream"); for (const auto& h:n->hijos) { std::string t=analizarExpresion(h); if (t=="string" || t=="endl") error("cin necesita una variable modificable."); } return; }
         if (e == "Expresion") { if (!n->hijos.empty()) analizarExpresion(n->hijos[0]); return; }
         //Case contiene Valor como primer hijo; se revisa como expresion y luego sus sentencias.
         for (const auto& h : n->hijos) {
@@ -294,6 +369,7 @@ private:
 public:
     void analizar(const NodoPtr& raiz) {
         errores.clear(); ambitos.clear(); funciones.clear(); funcionesDefinidas.clear(); tipoRetornoActual.clear();
+        includes.clear(); avisosLibreria.clear();
         profundidadCiclo=0; profundidadSwitch=0;
         abrirAmbito();
         registrarFunciones(raiz);
