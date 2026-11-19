@@ -34,6 +34,14 @@ inline bool terminaEnCpp(const std::string& ruta) {
     return extension == ".cpp";
 }
 
+// Dada la ruta del .cpp devuelve la ruta del .txt donde se guarda el ensamblador (en la misma carpeta)
+// Ejemplo:  C:\proyectos\programa1.cpp   ->   C:\proyectos\programa1_ensamblador.txt
+inline std::string rutaSalidaTxt(const std::string& rutaCpp) {
+    std::string base = rutaCpp;
+    if (terminaEnCpp(base)) base = base.substr(0, base.size() - 4);   // quita el ".cpp"
+    return base + "_ensamblador.txt";
+}
+
 // Lee un archivo .cpp completo y lo guarda en 'contenido'.
 // Devuelve true si todo salio bien. Si falla, muestra el motivo y devuelve false.
 inline bool leerArchivo(const std::string& rutaEscrita, std::string& contenido) {
@@ -83,6 +91,6 @@ inline bool leerArchivo(const std::string& rutaEscrita, std::string& contenido) 
         return false;
     }
 
-    std::cout << "Archivo \"" << ruta << "\" leido correctamente (" << contenido.size() << " caracteres).\n";
+    std::cout << "Archivo \"" << ruta << "\" leido correctamente (" << contenido.size() << " caracteres).\n\n";
     return true;
 }

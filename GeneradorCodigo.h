@@ -1,9 +1,10 @@
 #pragma once
-// GeneradorCodigo.h - Generación de código
+// GeneradorCodigo.h - Generacion de codigo
 
 #include <iostream>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include "CodigoIntermedio.h"
 
@@ -264,5 +265,41 @@ public:
     // Permite consultar el codigo generado
     const std::vector<std::string>& obtenerCodigo() const {
         return codigoEnsamblador;
+    }
+
+    // Guarda el codigo ensamblador en un archivo de texto
+    // 'archivoFuente' es opcional: si se manda, el .txt lleva como primera linea de que .cpp salio
+    bool guardarEnArchivo(const std::string& nombreArchivo,
+                          const std::string& archivoFuente = "") const {
+
+        std::ofstream archivo(nombreArchivo.c_str());
+
+        if (!archivo.is_open()) {
+            std::cout << "Error: no se pudo crear el archivo "
+                      << nombreArchivo << "\n"
+                      << "Revise que la carpeta exista y que tenga permiso de escritura.\n";
+            return false;
+        }
+
+        if (!archivoFuente.empty()) {
+            archivo << "; Codigo fuente: " << archivoFuente << "\n";
+            archivo << "; Generado por el compilador del Jefe y Subjefe\n\n";
+        }
+
+        for (const auto& instruccion : codigoEnsamblador) {
+            archivo << instruccion << "\n";
+        }
+
+        archivo.close();
+
+        if (archivo.fail()) {
+            std::cout << "Error al guardar el codigo generado.\n";
+            return false;
+        }
+
+        std::cout << "\nArchivo generado correctamente: "
+                  << nombreArchivo << "\n";
+
+        return true;
     }
 };

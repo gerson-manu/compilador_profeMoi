@@ -1,4 +1,4 @@
-//Código del Jefe y Subjefe - 17 / Noviembre / 2026
+//Código del Jefe y Subjefe - 19 / Noviembre / 2026
 
 #include <iostream>
 #include <string>
@@ -12,7 +12,8 @@
 #include "CodigoIntermedio.h"
 #include "OptimizadorCodigo.h"
 #include "GeneradorCodigo.h"
-#include "ManejadorArchivos.h"   // Fase 7: lectura de archivos
+#include "ManejadorArchivos.h"
+#include "Librerias.h"
 
 int main() {
     std::string codigo;
@@ -33,6 +34,8 @@ int main() {
             continue;   // en un do-while, continue salta directo a la condicion del while
         }
 
+        std::string rutaArchivo = limpiarRuta(ruta);   //Misma ruta que uso leerArchivo (sin comillas ni espacios)
+
         Lexer lexer(codigo);                //Se crea un Lexer nuevo en cada vuelta para que empiece desde cero y no se sobreescriban
         std::cout << codigo << "\n\n";
 
@@ -40,7 +43,7 @@ int main() {
         std::vector<Token> listaTokens;
         Token token = lexer.obtenerSiguienteToken();
         while (token.tipo != TipoToken::FIN) {
-            std::cout << "Token(" << tipoATexto(token.tipo) << ", \"" << token.valor << "\")";
+            std::cout << "Token(" << tipoATexto(token.tipo) << ", \"" << escaparParaMostrar(token.valor) << "\")";
             if (!token.sugerencia.empty()) {
                 std::cout << "   <-- quisiste acaso decir '" << token.sugerencia << "'?";
             }
@@ -119,24 +122,31 @@ int main() {
                     //Mostramos el codigo ensamblador
                     generadorCodigo.imprimirCodigo();
 
-                    std::cout << "\nCOMPILACION CORRECTA: no se encontraron errores.\n";
+                    //Guardamos el codigo ensamblador en un archivo TXT (junto al .cpp: programa1.cpp -> programa1_ensamblador.txt)
+                    if (generadorCodigo.guardarEnArchivo(rutaSalidaTxt(rutaArchivo), rutaArchivo)) {
+                        std::cout << "\nCOMPILACION CORRECTA: no se encontraron errores.\n";
+                    } else {
+                        std::cout << "\nLa compilacion termino, pero no se pudo guardar el archivo.\n";
+                    }
                 } else {
                     std::cout << "Se encontraron " << erroresSemanticos.size() << " de posibles errores semanticos:\n";
                     for (size_t i = 0; i < erroresSemanticos.size(); ++i)
                         std::cout << "  " << (i + 1) << ". " << erroresSemanticos[i] << "\n";
                     std::cout << "\nCOMPILACION CON ERRORES SEMANTICOS.\n";
+                    std::cout << "No se genero el archivo .txt porque el programa tiene errores.\n";
                 }
             } else {
                 std::cout << "\nSe omite el analisis semantico porque hay errores sintacticos.\n";
+                std::cout << "No se genero el archivo .txt porque el programa tiene errores.\n";
             }
         } catch (const std::exception& e) {
             std::cout << "Error interno del analizador: " << e.what() << "\n";
         }
 
-        std::cout << "\nDesea analizar otra cadena? (s/n): ";
+        std::cout << "\nDesea compilar otro archivo? (s/n): ";
         std::getline(std::cin, respuesta);
 
-    } while (!respuesta.empty() && respuesta[0] == 's');
+    } while (!respuesta.empty() && (respuesta[0] == 's' || respuesta[0] == 'S'));
 
     std::cout << "\nFin del programa, gracias Profe Moi :)\n";
     return 0;
