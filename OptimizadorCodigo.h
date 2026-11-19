@@ -374,7 +374,7 @@ public:
     // Muestra las optimizaciones realizadas
     void imprimirResumen() const {
 
-        std::cout << "\n******** RESUMEN DE OPTIMIZACION ********\n";
+        std::cout << "\n---- RESUMEN DE OPTIMIZACION ----\n";
 
         std::cout << "Constantes plegadas: "
                   << constantesPlegadas << "\n";
