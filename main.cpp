@@ -12,16 +12,26 @@
 #include "CodigoIntermedio.h"
 #include "OptimizadorCodigo.h"
 #include "GeneradorCodigo.h"
+#include "ManejadorArchivos.h"   // Fase 7: lectura de archivos
 
 int main() {
     std::string codigo;
     std::string respuesta;
+    std::string ruta;       // Fase 7: nombre o ruta del archivo .cpp
 
     std::cout << "\t******** BIENVENIDO AL COMPILADOR DEL JEFE Y SUBJEFE *********\n";
 
     do {
-        std::cout << "\nEscriba una cadena de texto que desea analizar: ";
-        std::getline(std::cin, codigo);     //aqui el getline sirve para leer la linea completa, y con espacios, si es que tiene
+        // Fase 7: ahora el codigo fuente se lee desde un archivo .cpp (antes se escribia en la consola)
+        std::cout << "\nEscriba el nombre o la ruta del archivo .cpp que desea compilar: ";
+        std::getline(std::cin, ruta);
+
+        if (!leerArchivo(ruta, codigo)) {
+            // leerArchivo ya mostro el motivo del error; se pregunta si desea intentar de nuevo
+            std::cout << "\nDesea intentar con otro archivo? (s/n): ";
+            std::getline(std::cin, respuesta);
+            continue;   // en un do-while, continue salta directo a la condicion del while
+        }
 
         Lexer lexer(codigo);                //Se crea un Lexer nuevo en cada vuelta para que empiece desde cero y no se sobreescriban
         std::cout << codigo << "\n\n";
