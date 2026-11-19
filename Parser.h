@@ -13,7 +13,8 @@
 * NUEVO: return, break, continue, cout << ..., cin >> ...
 * NUEVO: funciones (definición y prototipo), llamadas, arreglos, ++ y --
 * NUEVO: operadores lógicos && || y el módulo %
-* NUEVO: recuperación de errores, ahora muestra TODOS los errores, no solo el primero*/
+* NUEVO: recuperación de errores, ahora muestra TODOS los errores, no solo el primero
+* NUEVO (Fase 7): #include <libreria>, #include "archivo.h" y using namespace std;*/
 
 class Parser {
 private:
@@ -501,6 +502,71 @@ private:
         return n;
     }
 
+    //TRUE si el token actual puede ser parte del nombre de una libreria entre < >   (iostream   math.h   bits/stdc++.h)
+    bool esPiezaDeLibreria() const {
+        if (es(TipoToken::IDENTIFICADOR) || es(TipoToken::NUMERO) || es(TipoToken::PUNTO) || es(TipoToken::DIV) ||
+            es(TipoToken::SUMA) || es(TipoToken::INCREMENTO) || es(TipoToken::RESTA)) return true;
+        //Nombres como cfloat los marca el lexer como ERROR por parecerse a una reservada (float), aqui si valen
+        return es(TipoToken::ERROR) && !actual().sugerencia.empty() && actual().valor[0] != '#';
+    }
+
+    //TRUE si el token actual es una directiva mal escrita (#incluide), el lexer la marca como ERROR que empieza con '#'
+    bool esDirectivaMalEscrita() const {
+        return es(TipoToken::ERROR) && !actual().valor.empty() && actual().valor[0] == '#';
+    }
+
+    //#include <libreria>     #include <libreria.h>     #include "archivo.h"
+    NodoPtr directiva() {
+        Token d = tokens[pos++];   //Salta la directiva (#include)
+        if (d.valor != "#include") {
+            throw std::runtime_error("La directiva '" + d.valor + "' todavia no esta soportada (por ahora solo existe #include)");
+        }
+
+        //#include "archivo.h"   (archivo propio del usuario)
+        if (es(TipoToken::CADENA)) {
+            Token archivo = tokens[pos++];
+            return crearNodo("IncludeLocal(" + archivo.valor + ")");
+        }
+
+        //#include <libreria>
+        if (!es(TipoToken::MENOR)) {
+            throw std::runtime_error("Se esperaba <libreria> o \"archivo\" despues de #include pero se encontro " + descripcionActual());
+        }
+        pos++;   //Salta el '<'
+
+        //El nombre puede venir en varios tokens (bits / stdc ++ . h), se juntan todos en uno solo
+        std::string nombre = "";
+        int piezas = 0;
+        while (esPiezaDeLibreria() && piezas < 10) {
+            nombre += tokens[pos].valor;
+            pos++;
+            piezas++;
+        }
+        if (nombre.empty()) {
+            throw std::runtime_error("Falta el nombre de la libreria dentro de '<' y '>' pero se encontro " + descripcionActual());
+        }
+        consumir(TipoToken::MAYOR, "'>' al cerrar el nombre de la libreria");
+        return crearNodo("Include(" + nombre + ")");
+    }
+
+    //using namespace std;
+    NodoPtr sentenciaUsing() {
+        pos++;   //Salta el 'using'
+        if (!esPalabra("namespace")) {
+            throw std::runtime_error("Se esperaba 'namespace' despues de 'using' pero se encontro " + descripcionActual());
+        }
+        pos++;   //Salta el 'namespace'
+        Token nombre = consumir(TipoToken::IDENTIFICADOR, "el nombre del espacio de nombres (por ejemplo std)");
+
+        //Si falta el ';' solo se avisa, sin saltar tokens (si no, se perderia el resto del programa)
+        if (es(TipoToken::PUNTO_COMA)) {
+            pos++;
+        } else {
+            errores.push_back("Se esperaba ';' despues de 'using namespace " + nombre.valor + "' pero se encontro " + descripcionActual());
+        }
+        return crearNodo("UsingNamespace(" + nombre.valor + ")");
+    }
+
     //return;    return expresion;
     NodoPtr sentenciaReturn() {
         pos++;   //Salta el 'return'
@@ -544,6 +610,11 @@ private:
     }
 
     NodoPtr sentencia() {
+        //Las directivas (#include) solo se leen al inicio, fuera de las funciones (parsear() las atiende)
+        if (es(TipoToken::DIRECTIVA) || esDirectivaMalEscrita()) {
+            throw std::runtime_error("La directiva '" + actual().valor + "' debe ir fuera de las funciones, al inicio del archivo");
+        }
+
         if (es(TipoToken::PALABRA_RESERVADA)) {
             const std::string v = actual().valor;   //Copia, porque pos va a avanzar
 
@@ -556,6 +627,7 @@ private:
             if (v == "return")     return sentenciaReturn();
             if (v == "cout")       return sentenciaSalida();
             if (v == "cin")        return sentenciaEntrada();
+            if (v == "using")      return sentenciaUsing();
 
             if (v == "break" || v == "continue") {
                 pos++;
@@ -564,6 +636,9 @@ private:
             }
             if (v == "else") {
                 throw std::runtime_error("'else' sin un 'if' que lo preceda");
+            }
+            if (v == "namespace") {
+                throw std::runtime_error("'namespace' solo puede usarse despues de 'using' (using namespace std;)");
             }
             if (v == "case" || v == "default") {
                 throw std::runtime_error("'" + v + "' solo puede usarse dentro de un switch");
@@ -626,6 +701,32 @@ private:
         }
     }
 
+    //Despues de un error en una directiva, salta hasta lo que podria ser lo siguiente del archivo:
+    //otra directiva, un 'using', un tipo de dato (int, void...) o el fin. (Una directiva no termina en ';')
+    void sincronizarDirectiva() {
+        while (!es(TipoToken::FIN) && !es(TipoToken::DIRECTIVA) && !esDirectivaMalEscrita() &&
+               !esPalabra("using") && !esTipoActual()) {
+            pos++;
+        }
+    }
+
+    //Lee una directiva (#include) y si hay un error lo guarda, se recupera y devuelve nullptr
+    NodoPtr directivaSegura() {
+        try {
+            if (esDirectivaMalEscrita()) {   //#incluide
+                Token mala = tokens[pos++];
+                std::string msg = "'" + mala.valor + "' no es una directiva valida";
+                if (!mala.sugerencia.empty()) msg += " (quiso decir '" + mala.sugerencia + "'?)";
+                throw std::runtime_error(msg);
+            }
+            return directiva();
+        } catch (const std::runtime_error& e) {
+            errores.push_back(e.what());
+            sincronizarDirectiva();
+            return nullptr;
+        }
+    }
+
     //Intenta leer una sentenci y si hay un error lo guarda, se recupera y devuelve nullptr
     NodoPtr sentenciaSegura() {
         try {
@@ -638,10 +739,10 @@ private:
     }
 
 public:
-    //aqui recibe los tokens del lexer y los espacios se ignoran
+    //aqui recibe los tokens del lexer y los espacios y comentarios se ignoran
     Parser(const std::vector<Token>& entrada) {
         for (const Token& t : entrada) {
-            if (t.tipo != TipoToken::ESPACIO) tokens.push_back(t);
+            if (t.tipo != TipoToken::ESPACIO && t.tipo != TipoToken::COMENTARIO) tokens.push_back(t);
         }
         tokens.push_back(Token{TipoToken::FIN, ""});
     } //LLAVE_DER
@@ -650,7 +751,11 @@ public:
         NodoPtr raiz = crearNodo("Programa");
         while (!es(TipoToken::FIN)) {
             size_t inicio = pos;
-            if (NodoPtr h = sentenciaSegura()) raiz->hijos.push_back(h);
+            if (es(TipoToken::DIRECTIVA) || esDirectivaMalEscrita()) {
+                if (NodoPtr h = directivaSegura()) raiz->hijos.push_back(h);   //#include ...
+            } else {
+                if (NodoPtr h = sentenciaSegura()) raiz->hijos.push_back(h);
+            }
             if (pos == inicio) pos++;   //Aqui hay un seguro para que no pueda hanber un ciclo infinito si esque corurre
         }
         return raiz;
