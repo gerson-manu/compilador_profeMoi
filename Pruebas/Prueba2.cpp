@@ -1,6 +1,6 @@
 //Programa con una libreria y comentarios
 #include <iostream>
-#include <cmath>   //Librería para sqrt y pow
+#include <cmath>   //Libreria para sqrt y pow
 using namespace std;
 
 /* Calcula una raiz
