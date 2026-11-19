@@ -16,6 +16,7 @@
 * NUEVO: reconoce && || % ++ -- += -= *= /= %= << >> y los dos puntos ':'
 * NUEVO: reconoce cout, cin y endl
 * NUEVO: reconoce listas de declaración como "int a, b;"
+* NUEVO (Fase 7): reconoce directivas (#include), comentarios (de una linea y de bloque) y las palabras using / namespace
 */
 
 class Lexer { //Entonces
@@ -23,7 +24,13 @@ private:
     //Lista de palabras reservadas
     const std::set<std::string> reservadas = {
         "if", "else", "while", "for", "do", "return", "int", "float", "double", "char", "void", "bool",
-        "break", "continue", "true", "false", "switch", "case", "default"
+        "break", "continue", "true", "false", "switch", "case", "default",
+        "using", "namespace"
+    };
+
+    //Directivas del preprocesador que el lexer reconoce despues de un '#'
+    const std::unordered_set<std::string> directivas = {
+        "include", "define", "undef", "ifdef", "ifndef", "if", "else", "elif", "endif", "pragma", "error"
     };
 
     //Palabras de la librería de entrada/salida. Son reservadas, pero NO se revisan por parecido,
@@ -148,6 +155,58 @@ private:
             return Token{TipoToken::ERROR, ident, parecida};
         }
         return Token{TipoToken::IDENTIFICADOR, ident, ""};
+    }
+
+    //Lee una directiva:  #include   #define ...   Se llama cuando caracterActual es el '#'
+    //Si el nombre se parece a "include" pero esta mal escrito (#incluide) devuelve ERROR con sugerencia
+    Token obtenerDirectiva() {
+        avanzar();   //Salta el '#'
+
+        //Se permiten espacios entre el # y el nombre ("# include")
+        while (caracterActual == ' ' || caracterActual == '\t') avanzar();
+
+        std::string nombre = "";
+        while (caracterActual != '\0' && std::isalpha(static_cast<unsigned char>(caracterActual))) {
+            nombre += caracterActual;
+            avanzar();
+        }
+
+        if (nombre.empty()) return Token{TipoToken::DESCONOCIDO, "#"};            //Un '#' suelto
+        if (directivas.count(nombre) > 0) return Token{TipoToken::DIRECTIVA, "#" + nombre};
+        if (aUnaEdicion(nombre, "include")) return Token{TipoToken::ERROR, "#" + nombre, "#include"};
+        return Token{TipoToken::ERROR, "#" + nombre};
+    }
+
+    //Comentario de una linea:  // texto   (llega hasta el final de la linea, el salto de linea no se incluye)
+    Token obtenerComentarioLinea() {
+        std::string texto = "";
+        while (caracterActual != '\0' && caracterActual != '\n') {
+            texto += caracterActual;
+            avanzar();
+        }
+        //En archivos de Windows la linea termina con \r\n, el \r no es parte del comentario
+        while (!texto.empty() && texto[texto.size() - 1] == '\r') texto.erase(texto.size() - 1);
+        return Token{TipoToken::COMENTARIO, texto};
+    }
+
+    //Comentario de varias lineas:  /* texto */
+    Token obtenerComentarioBloque() {
+        std::string texto = "/*";
+        avanzar();
+        avanzar();   //Salta el /*
+
+        while (caracterActual != '\0') {
+            if (caracterActual == '*' && verSiguiente() == '/') {
+                texto += "*/";
+                avanzar();
+                avanzar();
+                return Token{TipoToken::COMENTARIO, texto};
+            }
+            texto += caracterActual;
+            avanzar();
+        }
+        //Se acabo el archivo y el comentario nunca se cerro
+        return Token{TipoToken::ERROR, "/*", "*/"};
     }
 
     //Lee una cadena de texto entre comillas dobles, Se llama cuando caracterActual es la comilla de apertura.
@@ -282,6 +341,13 @@ public:
             if (caracterActual == '\'') {
                 return obtenerCaracter();
             }
+
+            //Directivas (#include ...)
+            if (caracterActual == '#') return obtenerDirectiva();
+
+            //Comentarios, se revisan ANTES que los operadores porque // y /* empiezan igual que la division
+            if (caracterActual == '/' && verSiguiente() == '/') return obtenerComentarioLinea();
+            if (caracterActual == '/' && verSiguiente() == '*') return obtenerComentarioBloque();
 
             //Operadores aritméticos (+ - * / %), junto con ++ -- += -= *= /= %=
             if (caracterActual == '+') return leerOperadorAritmetico('+', TipoToken::SUMA);

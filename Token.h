@@ -41,9 +41,11 @@ enum class TipoToken {
     DECREMENTO,             // --
     DESPLAZ_IZQ,            // <<   (el de cout)
     DESPLAZ_DER,            // >>   (el de cin)
-    ESPACIO,                //Identifica los espacios
-    DESCONOCIDO,            //Identifica si hay una secuencia desconocida
-    ERROR,                  //Identifica si hay un error
+    DIRECTIVA,              // #include  #define  (directivas del preprocesador)
+    COMENTARIO,             // // comentario   o   /* comentario */
+    ESPACIO,                // Identifica los espacios
+    DESCONOCIDO,            // Identifica si hay una secuencia desconocida
+    ERROR,                  // Identifica si hay un error
     FIN
 };
 //std::unordered_set
@@ -53,6 +55,18 @@ struct Token {
     std::string valor;
     std::string sugerencia = ""; //Solo se llena en los ERROR de palabras reservadas mal escritas
 };
+
+//Cambia los saltos de linea y tabuladores reales por \\n y \\t, para que cada token se vea en UNA sola linea
+inline std::string escaparParaMostrar(const std::string& texto) {
+    std::string salida = "";
+    for (size_t i = 0; i < texto.size(); i++) {
+        if (texto[i] == '\n') salida += "\\n";
+        else if (texto[i] == '\r') salida += "\\r";
+        else if (texto[i] == '\t') salida += "\\t";
+        else salida += texto[i];
+    }
+    return salida;
+}
 
 //Aquí inprime
 inline std::string tipoATexto(TipoToken tipo) {
@@ -93,6 +107,8 @@ inline std::string tipoATexto(TipoToken tipo) {
         case TipoToken::DECREMENTO: return "DECREMENTO";
         case TipoToken::DESPLAZ_IZQ: return "DESPLAZ_IZQ";
         case TipoToken::DESPLAZ_DER: return "DESPLAZ_DER";
+        case TipoToken::DIRECTIVA: return "DIRECTIVA";
+        case TipoToken::COMENTARIO: return "COMENTARIO";
         case TipoToken::ESPACIO: return "ESPACIO";
         case TipoToken::DESCONOCIDO: return "DESCONOCIDO";
         case TipoToken::ERROR: return "ERROR";
