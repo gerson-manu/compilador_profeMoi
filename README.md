@@ -1,5 +1,5 @@
 # compilador_profeMoi
-Holas, este es un repositorio especialmente para nuestro compilador, salu2
+Holas, este es un repositorio especialmente para nuestro compilador, por parte de José Y Manuel, salu2
 
 ## Como se usa
 1. Compilar `main.cpp` (necesita C++14 o superior).
